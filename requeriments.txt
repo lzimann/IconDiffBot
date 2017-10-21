@@ -1,0 +1,4 @@
+requests
+twisted
+Pillow
+numpy

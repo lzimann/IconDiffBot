@@ -1,0 +1,3 @@
+*.json
+icon_dump/*
+__pycache__/*
