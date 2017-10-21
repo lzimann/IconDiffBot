@@ -1,3 +1,4 @@
+import sys
 import os
 import re
 import hmac
@@ -79,7 +80,7 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message = True):
         msg = ["<details><summary>{}</summary>\n".format(icon), "Key | Old | New | Status", "--- | --- | --- | ---"]
         for key in this_dict:
             status = this_dict[key].get("status")
-            if status == 'no_check':
+            if status == 'Equal':
                 continue
             path_a = './icon_dump/old_{}.png'.format(key)
             path_b = './icon_dump/new_{}.png'.format(key)

@@ -124,14 +124,14 @@ def compare_two_icon_files(file_a, file_b):
     final_dict = {}
     for key in file_a_dict:
         final_dict[key] = {}
-        if not file_b_dict.get(key) or check_icon_state_diff(file_a_dict[key], file_b_dict[key]):
-            final_dict[key]["status"] = "no_check"
+        if not file_b_dict.get(key):
+            final_dict[key]["status"] = "Removed"
+            final_dict[key]["img_a"] = file_a_dict[key]
+        elif check_icon_state_diff(file_a_dict[key], file_b_dict[key]):
+            final_dict[key]["status"] = "Equal"
             file_a_dict[key].close()
-            try:
-                file_b_dict[key].close() # Since they are equal, close both images
-            except KeyError:
-                continue
-        elif not check_icon_state_diff(file_a_dict[key], file_b_dict[key]):
+            file_b_dict[key].close()
+        else:
             final_dict[key]["status"] = "Modified"
             final_dict[key]["img_a"] = file_a_dict[key]
             final_dict[key]["img_b"] = file_b_dict[key]
