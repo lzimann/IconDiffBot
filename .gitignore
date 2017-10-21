@@ -1,3 +1,4 @@
 *.json
 icon_dump/*
 __pycache__/*
+venv/*
