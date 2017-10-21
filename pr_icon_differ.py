@@ -164,7 +164,6 @@ if __name__ == '__main__':
     endpoints.serverFromString(reactor, "tcp:{}".format(config['webhook_port'])).listen(server.Site(Handler()))
     try:
         print("Listening for requests on port: {}.".format(config['webhook_port']))
-        test_pr("31972", True)
-        #reactor.run()
+        reactor.run()
     except KeyboardInterrupt:
         pass
