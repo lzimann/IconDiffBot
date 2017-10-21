@@ -51,12 +51,12 @@ def check_diff(diff_url):
 def check_icons(icons_with_diff, base, head, issue_url, send_message = True):
     if not os.path.exists('./icon_dump'):
         os.makedirs('./icon_dump')
-    icon_path_a = './icon_dump/old.dmi'
-    icon_path_b = './icon_dump/new.dmi'
     base_repo_url = base.get('repo').get('html_url')
     head_repo_url = head.get('repo').get('html_url')
     msgs = ["Icons with diff:"]
     for icon in icons_with_diff:
+        icon_path_a = './icon_dump/old.dmi'
+        icon_path_b = './icon_dump/new.dmi'
         response_a = requests.get('{}/blob/{}/{}'.format(base_repo_url, base.get('ref'), icon), data={'raw':  1})
         response_b = requests.get('{}/blob/{}/{}'.format(head_repo_url, head.get('ref'), icon), data={'raw':  1})
         if response_a.status_code == 200:
