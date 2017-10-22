@@ -3,12 +3,15 @@ import os
 import re
 import hmac
 import json
+import logging
 from hashlib import sha1
 import requests
 from twisted.web import resource, server
 from twisted.internet import reactor, endpoints
 
 import icons
+
+event_logger = logging.basicConfig(filename='event_logs.log', level=logging.ERROR, format="[%(asctime)s]: %(message)s")
 
 config = {}
 if os.path.exists(os.path.abspath('config.json')):
@@ -119,13 +122,15 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message = True):
 class Handler(resource.Resource):
     isLeaf = True
     def render_POST(self, request):
-        print("POST received.")
         payload = request.content.getvalue()
         if not compare_secret(request.getHeader('X-Hub-Signature'), payload):
             request.setResponseCode(401)
+            event_logger.info("POST received with wrong secret.")
             return b"Secret does not match"
-        if request.getHeader('X-GitHub-Event') != 'pull_request':
+        event = request.getHeader('X-GitHub-Event')
+        if event != 'pull_request':
             request.setResponseCode(404)
+            event_logger.info("POST received with event: %s", event)
             return b"Event not supported"
 
         #Then we check the PR for icon diffs
@@ -142,29 +147,33 @@ class Handler(resource.Resource):
             pr_diff_url = "{html_url}/commits/{sha}.diff".format(html_url=pr_obj['html_url'], sha=head['sha'])
         icons_with_diff = check_diff(pr_diff_url)
         if icons_with_diff:
-            print("Diff on PR {}!".format(payload['number']))
+            event_logger.info("%s: Icon diff detected on pull request: %s!", pr_obj['repo']['full_name'], payload['number'])
             check_icons(icons_with_diff, base, head, issue_url)
         return b"Ok"
     def render_GET(self, request):
         request.setResponseCode(666)
         return b"Fuck u"
 
-def test_pr(number, send_message = False):
+def test_pr(number, owner, repository, send_message = False):
     """tests a pr for the icon diff"""
-    req = requests.get("https://api.github.com/repos/tgstation/tgstation/pulls/{}".format(number))
+    req = requests.get("https://api.github.com/repos/{}/{}/pulls/{}".format(owner, repository, number))
     if req.status_code == 404:
-        print("PR does not exist")
+        event_logger.error('PR #%s on %s/%s does not exist.', number, owner, repository)
         return
     payload = req.json()
-    icons = check_diff(payload['diff_url'])
+    icons_diff = check_diff(payload['diff_url'])
     print("Icons:")
     print("\n".join(icons))
-    check_icons(icons, payload['base'], payload['head'], payload['html_url'], send_message)
+    check_icons(icons_diff, payload['base'], payload['head'], payload['html_url'], send_message)
 
 if __name__ == '__main__':
     endpoints.serverFromString(reactor, "tcp:{}".format(config['webhook_port'])).listen(server.Site(Handler()))
     try:
-        print("Listening for requests on port: {}.".format(config['webhook_port']))
+        logging.info("Listening for requests on port: %s.", config['webhook_port'])
         reactor.run()
-    except KeyboardInterrupt:
-        pass
+    except Exception as e:
+        if e is KeyboardInterrupt:
+            pass
+        else:
+            logging.error(e, exc_info=e, stack_info=True)
+            pass

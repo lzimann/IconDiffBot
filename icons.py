@@ -27,7 +27,6 @@ def generate_icon_states(filename):
     """Generates every icon state into an Image object. Returning a dict with {name : object}"""
     frame_dir_re = re.compile('(dirs|frames) = (\d+)')
     img = Image.open(filename)
-    data_type = np.dtype('int')
 
     meta_data = parse_metadata(img)
     try:
