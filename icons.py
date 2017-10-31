@@ -137,7 +137,7 @@ def compare_two_icon_files(file_a, file_b):
 
     for key in file_b_dict:
         if not file_a_dict.get(key):
-            final_dict[key] = {"Status" : "Created", "img_b" : file_b_dict[key]}
+            final_dict[key] = {"status" : "Created", "img_b" : file_b_dict[key]}
 
     return final_dict
 
