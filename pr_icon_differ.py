@@ -3,6 +3,7 @@ import os
 import re
 import hmac
 import json
+import logging
 from hashlib import sha1
 import requests
 from twisted.web import resource, server
@@ -10,21 +11,42 @@ from twisted.internet import reactor, endpoints
 
 import icons
 
+#Setup logging
+log_format = "[%(asctime)s]: %(message)s"
+logging.basicConfig(
+    filename='events.log',
+    level=logging.INFO,
+    format=log_format
+)
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+console.setFormatter(logging.Formatter(log_format))
+logging.getLogger('').addHandler(console)
+
+logger = logging.getLogger(__name__)
+
+
+def log_message(message):
+    """Logs a message to a file and prints on screen"""
+    logger.info(message)
+
+#Setup the config
 config = {}
 if os.path.exists(os.path.abspath('config.json')):
     with open('config.json', 'r') as f:
         config = json.load(f)
 else:
-    print("Make sure the config file exists.")
+    log_message("Make sure the config file exists.")
 
 github_secret = config['github']['secret'].encode('utf-8')
 github_user = config['github']['user']
 github_auth = config['github']['auth']
-actions_to_check = ['opened', 'synchronize']
-binary_regex = re.compile('diff --git a\/(.*\.dmi) b\/.?')
-
 upload_api_url = config['upload_api']['url']
 upload_api_key = config['upload_api']['key']
+
+actions_to_check = ['opened', 'synchronize']
+binary_regex = re.compile('diff --git a\/(.*\.dmi) b\/.?')
 
 def compare_secret(secret_to_compare, payload):
     """fuck you"""
@@ -122,12 +144,12 @@ class Handler(resource.Resource):
         payload = request.content.getvalue()
         if not compare_secret(request.getHeader('X-Hub-Signature'), payload):
             request.setResponseCode(401)
-            print("POST received with wrong secret.")
-            return b"Secret does not match"
+            log_message("POST received with wrong secret.")
+            return b"Secret does not match."
         event = request.getHeader('X-GitHub-Event')
         if event != 'pull_request':
             request.setResponseCode(404)
-            print("POST received with event:", event)
+            log_message("POST received with event: {}".format(event))
             return b"Event not supported"
 
         #Then we check the PR for icon diffs
@@ -144,7 +166,7 @@ class Handler(resource.Resource):
             pr_diff_url = "{html_url}/commits/{sha}.patch".format(html_url=pr_obj['html_url'], sha=head['sha'])
         icons_with_diff = check_diff(pr_diff_url)
         if icons_with_diff:
-            print("{}: Icon diff detected on pull request: {}!".format(pr_obj['repo']['full_name'], payload['number']))
+            log_message("{}: Icon diff detected on pull request: {}!".format(pr_obj['repo']['full_name'], payload['number']))
             check_icons(icons_with_diff, base, head, issue_url)
         return b"Ok"
     def render_GET(self, request):
@@ -155,18 +177,18 @@ def test_pr(number, owner, repository, send_message = False):
     """tests a pr for the icon diff"""
     req = requests.get("https://api.github.com/repos/{}/{}/pulls/{}".format(owner, repository, number))
     if req.status_code == 404:
-        print('PR #%s on %s/%s does not exist.', number, owner, repository)
+        log_message('PR #{} on {}/{} does not exist.'.format(number, owner, repository))
         return
     payload = req.json()
     icons_diff = check_diff(payload['diff_url'])
-    print("Icons:")
-    print("\n".join(icons))
+    log_message("Icons:")
+    log_message("\n".join(icons))
     check_icons(icons_diff, payload['base'], payload['head'], payload['html_url'], send_message)
 
 if __name__ == '__main__':
     endpoints.serverFromString(reactor, "tcp:{}".format(config['webhook_port'])).listen(server.Site(Handler()))
     try:
-        print("Listening for requests on port: {}".format(config['webhook_port']))
+        log_message("Listening for requests on port: {}".format(config['webhook_port']))
         reactor.run()
     except KeyboardInterrupt:
         pass
