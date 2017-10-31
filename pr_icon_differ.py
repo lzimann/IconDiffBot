@@ -13,14 +13,15 @@ import icons
 
 #Setup logging
 log_format = "[%(asctime)s]: %(message)s"
+logging_level = logging.NOTSET
 logging.basicConfig(
     filename='events.log',
-    level=logging.INFO,
+    level=logging_level,
     format=log_format
 )
 
 console = logging.StreamHandler()
-console.setLevel(logging.INFO)
+console.setLevel(logging_level)
 console.setFormatter(logging.Formatter(log_format))
 logging.getLogger('').addHandler(console)
 
@@ -49,16 +50,16 @@ actions_to_check = ['opened', 'synchronize']
 binary_regex = re.compile('diff --git a\/(.*\.dmi) b\/.?')
 
 def compare_secret(secret_to_compare, payload):
-    """fuck you"""
+    """Compares given secret with ours"""
     if secret_to_compare is None:
         return False
-   
+
     this_secret = hmac.new(github_secret, payload, sha1)
     secret_to_compare = secret_to_compare.replace('sha1=', '')
     return hmac.compare_digest(secret_to_compare, this_secret.hexdigest())
 
 def check_diff(diff_url):
-    """checks the diff url for icons"""
+    """Checks the diff url for icons"""
     req = requests.get(diff_url)
     if req.status_code == 404:
         return None
@@ -71,17 +72,40 @@ def check_diff(diff_url):
         icons_with_diff.append(match.group(1))
     return icons_with_diff
 
-def check_icons(icons_with_diff, base, head, issue_url, send_message = True):
+def upload_image(file_to_upload):
+    """Uploads an image to the configured host"""
+    data = {'key' : upload_api_key}
+    files = {'file' : file_to_upload}
+    req = requests.post(upload_api_url, data=data, files=files)
+    req_json = req.json()
+    return req_json.get('url')
+
+def post_comment(issue_url, message_dict):
+    """Post a comment on given github issue url"""
+    github_api_url = "{issue}/comments".format(issue=issue_url)
+    body = json.dumps({'body' : '\n'.join(message_dict)})
+    req = requests.post(github_api_url, data=body, auth=(github_user, github_auth))
+    if req.status_code == 201:
+        log_message("Sucessefully commented icon diff.")
+    else:
+        log_message("Failed to comment.")
+
+def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
+    """
+    Checks two icons for their states, comparing the images and posting on the PR in case
+    a diff exists
+    """
     if not os.path.exists('./icon_dump'):
         os.makedirs('./icon_dump')
     base_repo_url = base.get('repo').get('html_url')
     head_repo_url = head.get('repo').get('html_url')
     msgs = ["Icons with diff:"]
+    req_data = {'raw' : 1}
     for icon in icons_with_diff:
         icon_path_a = './icon_dump/old.dmi'
         icon_path_b = './icon_dump/new.dmi'
-        response_a = requests.get('{}/blob/{}/{}'.format(base_repo_url, base.get('ref'), icon), data={'raw':  1})
-        response_b = requests.get('{}/blob/{}/{}'.format(head_repo_url, head.get('ref'), icon), data={'raw':  1})
+        response_a = requests.get('{}/blob/{}/{}'.format(base_repo_url, base['ref'], icon), data=req_data)
+        response_b = requests.get('{}/blob/{}/{}'.format(head_repo_url, head['ref'], icon), data=req_data)
         if response_a.status_code == 200:
             with open(icon_path_a, 'wb') as f:
                 f.write(response_a.content)
@@ -90,7 +114,8 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message = True):
         if response_b.status_code == 200:
             with open(icon_path_b, 'wb') as f:
                 f.write(response_b.content)
-        elif response_b.status_code == 404: #This means the file is being deleted, which does not interest us
+        #This means the file is being deleted, which does not interest us
+        elif response_b.status_code == 404:
             try:
                 os.remove(icon_path_a)
                 continue
@@ -109,36 +134,33 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message = True):
             img_a = this_dict[key].get('img_a')
             if img_a:
                 img_a.save(path_a)
+                img_a.close()
                 with open(path_a, 'rb') as f:
-                    url_a = "![{}]({})".format(key, requests.post(upload_api_url, data={'key' : upload_api_key}, files={'file' : f}).json().get('url'))
+                    url_a = "![{key}]({url})".format(key=key, url=upload_image(f))
+                os.remove(path_a)
             else:
                 url_a = "![]()"
             img_b = this_dict[key].get('img_b')
             if img_b:
                 img_b.save(path_b)
+                img_b.close()
                 with open(path_b, 'rb') as f:
-                    url_b = "![{}]({})".format(key, requests.post(upload_api_url, data={'key' : upload_api_key}, files={'file' : f}).json().get('url'))
+                    url_b = "![{key}]({url})".format(key=key, url=upload_image(f))
+                os.remove(path_b)
             else:
                 url_b = "![]()"
-            if os.path.exists(path_a):
-                os.remove(path_a)
-            if os.path.exists(path_b):
-                os.remove(path_b)
-
             msg.append("{key}|{url_a}|{url_b}|{status}".format(key=key, url_a=url_a, url_b=url_b, status=status))
         msg.append("</details>")
         msgs.append("\n".join(msg))
-    if send_message:
-        github_api_url = "{issue}/comments".format(issue=issue_url)
-        if len(msgs) > 3:
-            body = json.dumps({'body' : '\n'.join(msgs)})
-            requests.post(github_api_url, data=body, auth=(github_user, github_auth))
+    if send_message and len(msgs) > 1:
+        post_comment(issue_url, msgs)
     if os.path.exists(icon_path_a):
         os.remove(icon_path_a)
     if os.path.exists(icon_path_b):
         os.remove(icon_path_b)
 
 class Handler(resource.Resource):
+    """Opens a web server to handle POST requests on given port"""
     isLeaf = True
     def render_POST(self, request):
         payload = request.content.getvalue()
@@ -170,8 +192,9 @@ class Handler(resource.Resource):
             check_icons(icons_with_diff, base, head, issue_url)
         return b"Ok"
     def render_GET(self, request):
-        request.setResponseCode(666)
-        return b"Fuck u"
+        request.setResponseCode(404)
+        log_message("Received a GET request.")
+        return b"GET requests are not supported."
 
 def test_pr(number, owner, repository, send_message = False):
     """tests a pr for the icon diff"""
@@ -185,10 +208,15 @@ def test_pr(number, owner, repository, send_message = False):
     log_message("\n".join(icons))
     check_icons(icons_diff, payload['base'], payload['head'], payload['html_url'], send_message)
 
+def start_server():
+    """Starts the webserver"""
+    webhook_port = "tcp:{}".format(config['webhook_port'])
+    endpoints.serverFromString(reactor, webhook_port).listen(server.Site(Handler()))
+    log_message("Listening for requests on port: {}".format(config['webhook_port']))
+    reactor.run()
+
 if __name__ == '__main__':
-    endpoints.serverFromString(reactor, "tcp:{}".format(config['webhook_port'])).listen(server.Site(Handler()))
     try:
-        log_message("Listening for requests on port: {}".format(config['webhook_port']))
-        reactor.run()
+        start_server()
     except KeyboardInterrupt:
         pass
