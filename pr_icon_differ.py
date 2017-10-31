@@ -122,12 +122,12 @@ class Handler(resource.Resource):
         payload = request.content.getvalue()
         if not compare_secret(request.getHeader('X-Hub-Signature'), payload):
             request.setResponseCode(401)
-            event_logger.info("POST received with wrong secret.")
+            print("POST received with wrong secret.")
             return b"Secret does not match"
         event = request.getHeader('X-GitHub-Event')
         if event != 'pull_request':
             request.setResponseCode(404)
-            event_logger.info("POST received with event: %s", event)
+            print("POST received with event:", event)
             return b"Event not supported"
 
         #Then we check the PR for icon diffs
@@ -144,7 +144,7 @@ class Handler(resource.Resource):
             pr_diff_url = "{html_url}/commits/{sha}.patch".format(html_url=pr_obj['html_url'], sha=head['sha'])
         icons_with_diff = check_diff(pr_diff_url)
         if icons_with_diff:
-            print("%s: Icon diff detected on pull request: %s!", pr_obj['repo']['full_name'], payload['number'])
+            print("{}: Icon diff detected on pull request: {}!".format(pr_obj['repo']['full_name'], payload['number']))
             check_icons(icons_with_diff, base, head, issue_url)
         return b"Ok"
     def render_GET(self, request):
@@ -166,7 +166,7 @@ def test_pr(number, owner, repository, send_message = False):
 if __name__ == '__main__':
     endpoints.serverFromString(reactor, "tcp:{}".format(config['webhook_port'])).listen(server.Site(Handler()))
     try:
-        print("Listening for requests on port: %s.", config['webhook_port'])
+        print("Listening for requests on port: {}".format(config['webhook_port']))
         reactor.run()
     except KeyboardInterrupt:
         pass
