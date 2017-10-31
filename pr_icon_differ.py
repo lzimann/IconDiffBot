@@ -3,15 +3,12 @@ import os
 import re
 import hmac
 import json
-import logging
 from hashlib import sha1
 import requests
 from twisted.web import resource, server
 from twisted.internet import reactor, endpoints
 
 import icons
-
-event_logger = logging.basicConfig(filename='event_logs.log', level=logging.ERROR, format="[%(asctime)s]: %(message)s")
 
 config = {}
 if os.path.exists(os.path.abspath('config.json')):
@@ -147,7 +144,7 @@ class Handler(resource.Resource):
             pr_diff_url = "{html_url}/commits/{sha}.patch".format(html_url=pr_obj['html_url'], sha=head['sha'])
         icons_with_diff = check_diff(pr_diff_url)
         if icons_with_diff:
-            event_logger.info("%s: Icon diff detected on pull request: %s!", pr_obj['repo']['full_name'], payload['number'])
+            print("%s: Icon diff detected on pull request: %s!", pr_obj['repo']['full_name'], payload['number'])
             check_icons(icons_with_diff, base, head, issue_url)
         return b"Ok"
     def render_GET(self, request):
@@ -158,7 +155,7 @@ def test_pr(number, owner, repository, send_message = False):
     """tests a pr for the icon diff"""
     req = requests.get("https://api.github.com/repos/{}/{}/pulls/{}".format(owner, repository, number))
     if req.status_code == 404:
-        event_logger.error('PR #%s on %s/%s does not exist.', number, owner, repository)
+        print('PR #%s on %s/%s does not exist.', number, owner, repository)
         return
     payload = req.json()
     icons_diff = check_diff(payload['diff_url'])
@@ -169,11 +166,7 @@ def test_pr(number, owner, repository, send_message = False):
 if __name__ == '__main__':
     endpoints.serverFromString(reactor, "tcp:{}".format(config['webhook_port'])).listen(server.Site(Handler()))
     try:
-        logging.info("Listening for requests on port: %s.", config['webhook_port'])
+        print("Listening for requests on port: %s.", config['webhook_port'])
         reactor.run()
-    except Exception as e:
-        if e is KeyboardInterrupt:
-            pass
-        else:
-            logging.error(e, exc_info=e, stack_info=True)
-            pass
+    except KeyboardInterrupt:
+        pass
