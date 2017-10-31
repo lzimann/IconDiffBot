@@ -188,7 +188,7 @@ class Handler(resource.Resource):
             pr_diff_url = "{html_url}/commits/{sha}.patch".format(html_url=pr_obj['html_url'], sha=head['sha'])
         icons_with_diff = check_diff(pr_diff_url)
         if icons_with_diff:
-            log_message("{}: Icon diff detected on pull request: {}!".format(pr_obj['repo']['full_name'], payload['number']))
+            log_message("{}: Icon diff detected on pull request: {}!".format(head['repo']['full_name'], payload['number']))
             check_icons(icons_with_diff, base, head, issue_url)
         return b"Ok"
     def render_GET(self, request):
