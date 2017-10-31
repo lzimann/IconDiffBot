@@ -144,7 +144,7 @@ class Handler(resource.Resource):
         head = pr_obj['head']
         base = pr_obj['base']
         if payload['action'] == 'synchronize':
-            pr_diff_url = "{html_url}/commits/{sha}.diff".format(html_url=pr_obj['html_url'], sha=head['sha'])
+            pr_diff_url = "{html_url}/commits/{sha}.patch".format(html_url=pr_obj['html_url'], sha=head['sha'])
         icons_with_diff = check_diff(pr_diff_url)
         if icons_with_diff:
             event_logger.info("%s: Icon diff detected on pull request: %s!", pr_obj['repo']['full_name'], payload['number'])
