@@ -111,7 +111,7 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message = True):
         msgs.append("\n".join(msg))
     if send_message:
         github_api_url = "{issue}/comments".format(issue=issue_url)
-        if len(msgs) > 1:
+        if len(msgs) > 3:
             body = json.dumps({'body' : '\n'.join(msgs)})
             requests.post(github_api_url, data=body, auth=(github_user, github_auth))
     if os.path.exists(icon_path_a):
