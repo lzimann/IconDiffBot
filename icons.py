@@ -2,7 +2,8 @@ import os
 import re
 
 from collections import OrderedDict
-from PIL import Image, ImageChops
+from PIL import ImageChops
+import PIL.Image
 
 import numpy as np
 
@@ -26,7 +27,7 @@ def parse_metadata(img):
 def generate_icon_states(filename):
     """Generates every icon state into an Image object. Returning a dict with {name : object}"""
     frame_dir_re = re.compile('(dirs|frames) = (\d+)')
-    img = Image.open(filename)
+    img = PIL.Image.open(filename)
 
     meta_data = parse_metadata(img)
     try:
@@ -69,7 +70,7 @@ def generate_icon_states(filename):
     for line in range(0, total_lines):
         icon = 0
         while icon < icons_per_line:
-            this_icon = Image.new('RGBA', (icon_width, icon_height))
+            this_icon = PIL.Image.new('RGBA', (icon_width, icon_height))
             try:
                 this_icon_dict = icon_names[icon_count] # name : [dirs, frames, delay]
                 name = this_icon_dict[0].replace('state = ', '').replace('\"', '')
