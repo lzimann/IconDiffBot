@@ -13,7 +13,7 @@ import icons
 
 #Setup logging
 log_format = "[%(asctime)s]: %(message)s"
-logging_level = logging.NOTSET
+logging_level = logging.INFO
 logging.basicConfig(
     filename='events.log',
     level=logging_level,
@@ -72,8 +72,10 @@ def check_diff(diff_url):
         icons_with_diff.append(match.group(1))
     return icons_with_diff
 
-def upload_image(file_to_upload):
+def upload_image(file_to_upload, upload = True):
     """Uploads an image to the configured host"""
+    if not upload:
+        return None
     data = {'key' : upload_api_key}
     files = {'file' : file_to_upload}
     req = requests.post(upload_api_url, data=data, files=files)
@@ -102,8 +104,9 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
     msgs = ["Icons with diff:"]
     req_data = {'raw' : 1}
     for icon in icons_with_diff:
-        icon_path_a = './icon_dump/old.dmi'
-        icon_path_b = './icon_dump/new.dmi'
+        i_name = re.sub('.*\/(.*)\.dmi', '\\1', icon)
+        icon_path_a = './icon_dump/old_{}.dmi'.format(i_name)
+        icon_path_b = './icon_dump/new_{}.dmi'.format(i_name)
         response_a = requests.get('{}/blob/{}/{}'.format(base_repo_url, base['ref'], icon), data=req_data)
         response_b = requests.get('{}/blob/{}/{}'.format(head_repo_url, head['ref'], icon), data=req_data)
         if response_a.status_code == 200:
@@ -134,18 +137,16 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
             img_a = this_dict[key].get('img_a')
             if img_a:
                 img_a.save(path_a)
-                img_a.close()
                 with open(path_a, 'rb') as f:
-                    url_a = "![{key}]({url})".format(key=key, url=upload_image(f))
+                    url_a = "![{key}]({url})".format(key=key, url=upload_image(f, send_message))
                 os.remove(path_a)
             else:
                 url_a = "![]()"
             img_b = this_dict[key].get('img_b')
             if img_b:
                 img_b.save(path_b)
-                img_b.close()
                 with open(path_b, 'rb') as f:
-                    url_b = "![{key}]({url})".format(key=key, url=upload_image(f))
+                    url_b = "![{key}]({url})".format(key=key, url=upload_image(f, send_message))
                 os.remove(path_b)
             else:
                 url_b = "![]()"
@@ -204,8 +205,9 @@ def test_pr(number, owner, repository, send_message = False):
         return
     payload = req.json()
     icons_diff = check_diff(payload['diff_url'])
+    print(icons_diff)
     log_message("Icons:")
-    log_message("\n".join(icons))
+    log_message("\n".join(icons_diff))
     check_icons(icons_diff, payload['base'], payload['head'], payload['html_url'], send_message)
 
 def start_server():
