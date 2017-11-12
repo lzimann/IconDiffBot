@@ -36,6 +36,12 @@ def log_message(message):
     """Logs a message to a file and prints on screen"""
     logger.info(message)
 
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """Makes exception log to the logger"""
+    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = handle_exception
+
 #Setup the config
 config = {}
 if os.path.exists(os.path.abspath('config.json')):
