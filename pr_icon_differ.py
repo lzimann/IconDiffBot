@@ -109,7 +109,7 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
     msgs = ["Icons with diff:"]
     req_data = {'raw' : 1}
     if DEBUG:
-        issue_number = re.sub('https:\/\/github\.com\/.*\/.*\/pull\/(\d*)', '\\1', issue_url)
+        issue_number = re.sub('.*\/issues\/(\d*)', '\\1', issue_url)
     for icon in icons_with_diff:
         i_name = re.sub('.*\/(.*)\.dmi', '\\1', icon)
         icon_path_a = './icon_dump/old_{}.dmi'.format(i_name)
@@ -163,7 +163,7 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
         msg.append("</details>")
         msgs.append("\n".join(msg))
         if DEBUG:
-            with open("{}_{}.log".format(i_name, issue_number), 'w') as fp:
+            with open("icon_dump/{}_{}.log".format(i_name, issue_number), 'w') as fp:
                 fp.write("\n".join(msg))
     if send_message and len(msgs) > 1:
         post_comment(issue_url, msgs)
@@ -220,7 +220,7 @@ def test_pr(number, owner, repository, send_message = False):
     print(icons_diff)
     log_message("Icons:")
     log_message("\n".join(icons_diff))
-    check_icons(icons_diff, payload['base'], payload['head'], payload['html_url'], send_message)
+    check_icons(icons_diff, payload['base'], payload['head'], payload['issue_url'], send_message)
 
 def y_n_test(input_msg):
     if input_msg[:1] in ("Y", "y"):
