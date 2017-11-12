@@ -1,5 +1,6 @@
 import os
 import re
+import json
 
 from collections import OrderedDict
 from PIL import ImageChops
@@ -24,12 +25,14 @@ def parse_metadata(img):
         dict[current_key].append(entry.replace('\t', ''))
     return dict
 
-def generate_icon_states(filename):
+def generate_icon_states(filename, save_each = False):
     """Generates every icon state into an Image object. Returning a dict with {name : object}"""
     frame_dir_re = re.compile('(dirs|frames) = (\d+)')
     img = PIL.Image.open(filename)
 
     meta_data = parse_metadata(img)
+    with open("icon_dump/metadata.txt", 'w') as f:
+        json.dump(meta_data, f)
     try:
         sizes = meta_data['version = 4.0']
     except KeyError:
@@ -82,10 +85,24 @@ def generate_icon_states(filename):
                     if not skip_naming:
                         icon_count += 1
                 else:
+                    amt_dirs = 0
+                    amt_frames = 0
+                    movement = False
                     for item in this_icon_dict[1]:
                         match = frame_dir_re.search(item)
                         if match:
-                            skip_naming += (int(match.group(2)) - 1)
+                            amount = int(match.group(2))
+                            if match.group(1) == "dirs":
+                                amt_dirs = amount
+                            else:
+                                amt_frames = amount
+                        else:
+                            if item == 'movement = 1':
+                                movement = True
+                    if movement:
+                        skip_naming = (amt_dirs * amt_frames) - 1
+                    else:
+                        skip_naming = (amt_dirs - 1) + (amt_frames - 1)
                     if not skip_naming:
                         icon_count += 1
                     else:
@@ -106,6 +123,8 @@ def generate_icon_states(filename):
 
             icon += 1
             icons[name] = this_icon
+            if save_each:
+                this_icon.save("icon_dump/{}.png".format(name))
     return icons
 
 
@@ -143,5 +162,5 @@ def compare_two_icon_files(file_a, file_b):
     return final_dict
 
 if __name__ == '__main__':
-    with open("cables.dmi", 'rb') as f:
-        generate_icon_states(f)
+    with open("./icon_dump/new_items_and_weapons.dmi", 'rb') as f:
+        generate_icon_states(f, True)

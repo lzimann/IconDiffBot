@@ -1,4 +1,5 @@
 import sys
+import getopt
 import os
 import re
 import hmac
@@ -11,9 +12,13 @@ from twisted.internet import reactor, endpoints
 
 import icons
 
+DEBUG = False
+
 #Setup logging
 log_format = "[%(asctime)s]: %(message)s"
 logging_level = logging.INFO
+if DEBUG:
+    logging_level = logging.NOTSET
 logging.basicConfig(
     filename='events.log',
     level=logging_level,
@@ -26,7 +31,6 @@ console.setFormatter(logging.Formatter(log_format))
 logging.getLogger('').addHandler(console)
 
 logger = logging.getLogger(__name__)
-
 
 def log_message(message):
     """Logs a message to a file and prints on screen"""
@@ -88,9 +92,10 @@ def post_comment(issue_url, message_dict):
     body = json.dumps({'body' : '\n'.join(message_dict)})
     req = requests.post(github_api_url, data=body, auth=(github_user, github_auth))
     if req.status_code == 201:
-        log_message("Sucessefully commented icon diff.")
+        log_message("Sucessefully commented icon diff on: {}".format(issue_url))
     else:
-        log_message("Failed to comment.")
+        log_message("Failed to comment on: {}".format(issue_url))
+        log_message("Error code: {}".format(req.status_code))
 
 def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
     """
@@ -103,6 +108,8 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
     head_repo_url = head.get('repo').get('html_url')
     msgs = ["Icons with diff:"]
     req_data = {'raw' : 1}
+    if DEBUG:
+        issue_number = re.sub('https:\/\/github\.com\/.*\/.*\/pull\/(\d*)', '\\1', issue_url)
     for icon in icons_with_diff:
         i_name = re.sub('.*\/(.*)\.dmi', '\\1', icon)
         icon_path_a = './icon_dump/old_{}.dmi'.format(i_name)
@@ -139,7 +146,8 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
                 img_a.save(path_a)
                 with open(path_a, 'rb') as f:
                     url_a = "![{key}]({url})".format(key=key, url=upload_image(f, send_message))
-                os.remove(path_a)
+                if not DEBUG:
+                    os.remove(path_a)
             else:
                 url_a = "![]()"
             img_b = this_dict[key].get('img_b')
@@ -147,17 +155,21 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
                 img_b.save(path_b)
                 with open(path_b, 'rb') as f:
                     url_b = "![{key}]({url})".format(key=key, url=upload_image(f, send_message))
-                os.remove(path_b)
+                if not DEBUG:
+                    os.remove(path_b)
             else:
                 url_b = "![]()"
             msg.append("{key}|{url_a}|{url_b}|{status}".format(key=key, url_a=url_a, url_b=url_b, status=status))
         msg.append("</details>")
         msgs.append("\n".join(msg))
+        if DEBUG:
+            with open("{}_{}.log".format(i_name, issue_number), 'w') as fp:
+                fp.write("\n".join(msg))
     if send_message and len(msgs) > 1:
         post_comment(issue_url, msgs)
-    if os.path.exists(icon_path_a):
+    if os.path.exists(icon_path_a) and not DEBUG:
         os.remove(icon_path_a)
-    if os.path.exists(icon_path_b):
+    if os.path.exists(icon_path_b) and not DEBUG:
         os.remove(icon_path_b)
 
 class Handler(resource.Resource):
@@ -210,15 +222,29 @@ def test_pr(number, owner, repository, send_message = False):
     log_message("\n".join(icons_diff))
     check_icons(icons_diff, payload['base'], payload['head'], payload['html_url'], send_message)
 
+def y_n_test(input_msg):
+    if input_msg[:1] in ("Y", "y"):
+        return True
+    return False
+
 def start_server():
     """Starts the webserver"""
     webhook_port = "tcp:{}".format(config['webhook_port'])
     endpoints.serverFromString(reactor, webhook_port).listen(server.Site(Handler()))
     log_message("Listening for requests on port: {}".format(config['webhook_port']))
-    reactor.run()
-
-if __name__ == '__main__':
     try:
-        start_server()
+        reactor.run()
     except KeyboardInterrupt:
         pass
+
+if __name__ == '__main__':
+    if "debug" in sys.argv:
+        DEBUG = True
+        owner = input("Owner: ")
+        repo = input("Repo: ")
+        number = input("PR number: ")
+        send_msg = y_n_test(input("Send message(y/n): "))
+        test_pr(number, owner, repo, send_msg)
+    else:
+        start_server()
+        
