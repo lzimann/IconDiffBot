@@ -16,18 +16,20 @@ DEBUG = False
 
 #Setup logging
 log_format = "[%(asctime)s]: %(message)s"
+datefmt = "%Y-%m-%d %H:%M:%S"
 logging_level = logging.INFO
 if DEBUG:
     logging_level = logging.NOTSET
 logging.basicConfig(
     filename='events.log',
     level=logging_level,
-    format=log_format
+    format=log_format,
+    datefmt=datefmt
 )
 
 console = logging.StreamHandler()
 console.setLevel(logging_level)
-console.setFormatter(logging.Formatter(log_format))
+console.setFormatter(logging.Formatter(log_format, datefmt))
 logging.getLogger('').addHandler(console)
 
 logger = logging.getLogger(__name__)
