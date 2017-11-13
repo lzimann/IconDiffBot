@@ -1,5 +1,4 @@
 import sys
-import getopt
 import os
 import re
 import hmac
@@ -59,7 +58,7 @@ upload_api_url = config['upload_api']['url']
 upload_api_key = config['upload_api']['key']
 
 actions_to_check = ['opened', 'synchronize']
-binary_regex = re.compile('diff --git a\/(.*\.dmi) b\/.?')
+binary_regex = re.compile(r'diff --git a\/(.*\.dmi) b\/.?')
 
 def compare_secret(secret_to_compare, payload):
     """Compares given secret with ours"""
@@ -94,15 +93,16 @@ def upload_image(file_to_upload, upload = True):
     req_json = req.json()
     return req_json.get('url')
 
-def post_comment(issue_url, message_dict):
+def post_comment(issue_url, message_dict, base):
     """Post a comment on given github issue url"""
     github_api_url = "{issue}/comments".format(issue=issue_url)
     body = json.dumps({'body' : '\n'.join(message_dict)})
+    repo_name = base['repo']['full_name']
     req = requests.post(github_api_url, data=body, auth=(github_user, github_auth))
     if req.status_code == 201:
-        log_message("Sucessefully commented icon diff on: {}".format(issue_url))
+        log_message("[{}] Sucessefully commented icon diff on: {}".format(repo_name, req.json()['html_url']))
     else:
-        log_message("Failed to comment on: {}".format(issue_url))
+        log_message("[{}] Failed to comment on: {}".format(repo_name, issue_url))
         log_message("Error code: {}".format(req.status_code))
 
 def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
@@ -117,9 +117,9 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
     msgs = ["Icons with diff:"]
     req_data = {'raw' : 1}
     if DEBUG:
-        issue_number = re.sub('.*\/issues\/(\d*)', '\\1', issue_url)
+        issue_number = re.sub(r'.*\/issues\/(\d*)', '\\1', issue_url)
     for icon in icons_with_diff:
-        i_name = re.sub('.*\/(.*)\.dmi', '\\1', icon)
+        i_name = re.sub(r'.*\/(.*)\.dmi', '\\1', icon)
         icon_path_a = './icon_dump/old_{}.dmi'.format(i_name)
         icon_path_b = './icon_dump/new_{}.dmi'.format(i_name)
         response_a = requests.get('{}/blob/{}/{}'.format(base_repo_url, base['ref'], icon), data=req_data)
@@ -174,7 +174,7 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
             with open("icon_dump/{}_{}.log".format(i_name, issue_number), 'w') as fp:
                 fp.write("\n".join(msg))
     if send_message and len(msgs) > 1:
-        post_comment(issue_url, msgs)
+        post_comment(issue_url, msgs, base)
     if os.path.exists(icon_path_a) and not DEBUG:
         os.remove(icon_path_a)
     if os.path.exists(icon_path_b) and not DEBUG:
@@ -235,6 +235,13 @@ def y_n_test(input_msg):
         return True
     return False
 
+def get_debug_input():
+    owner = input("Owner: ")
+    repo = input("Repo: ")
+    number = input("PR number: ")
+    send_msg = y_n_test(input("Send message(y/n): "))
+    test_pr(number, owner, repo, send_msg)
+
 def start_server():
     """Starts the webserver"""
     webhook_port = "tcp:{}".format(config['webhook_port'])
@@ -248,11 +255,7 @@ def start_server():
 if __name__ == '__main__':
     if "debug" in sys.argv:
         DEBUG = True
-        owner = input("Owner: ")
-        repo = input("Repo: ")
-        number = input("PR number: ")
-        send_msg = y_n_test(input("Send message(y/n): "))
-        test_pr(number, owner, repo, send_msg)
+        get_debug_input()
     else:
         start_server()
         
