@@ -8,64 +8,64 @@ import PIL.Image
 
 import numpy as np
 
+PARSE_REGEX = re.compile(r'\t(.*) = (.*)')
+
 def parse_metadata(img):
-    """Parses a DMI metadata, returning an OrderedDict. img is a PIL.Image object"""
-    dict = img.info
-    info = dict['Description']
-    info = info.split('\n')
+    """
+    Parses a DMI metadata, 
+    returning an tuple array(icon_state, state dict). 
+    img is a PIL.Image object
+    """
+    img_dict = img.info
+    info = img_dict['Description'].split('\n')
     if not 'version = 4.0' in info:
-        return
-    dict = OrderedDict()
+        return None
+    meta_info = []
     current_key = None
     for entry in info:
-        if not '\t' in entry:
-            current_key = entry
-            dict.update({current_key : []})
+        if entry in ["# BEGIN DMI", "# END DMI", ""]:
             continue
-        dict[current_key].append(entry.replace('\t', ''))
-    return dict
+        if '\t' not in entry:
+            current_key = entry.replace('state = ', '').replace('\"', '')
+            meta_info.append((current_key, {}))
+        else:
+            this_info = PARSE_REGEX.search(entry)
+            if this_info:
+                grp_1 = this_info.group(1)
+                grp_2 = this_info.group(2)
+                if grp_1 == 'delay':
+                    grp_2 = grp_2.split(',')
+                else:
+                    grp_2 = int(grp_2)
+                dict_to_add = {grp_1 : grp_2}
+                meta_info[len(meta_info) - 1][1].update(dict_to_add)
+    return meta_info
 
 def generate_icon_states(filename, save_each = False):
     """Generates every icon state into an Image object. Returning a dict with {name : object}"""
-    frame_dir_re = re.compile('(dirs|frames) = (\d+)')
     img = PIL.Image.open(filename)
 
     meta_data = parse_metadata(img)
-    with open("icon_dump/metadata.txt", 'w') as f:
-        json.dump(meta_data, f)
-    try:
-        sizes = meta_data['version = 4.0']
-    except KeyError:
-        print("DMI version not supported!")
+    if meta_data is None:
+        print("Failed to retreive metadata.")
         return
-
+    
     image_width = img.width
     image_height = img.height
 
-    icon_width = int(re.search('width = (\d+)', sizes[0]).group(1))
-    icon_height = int(re.search('height = (\d+)', sizes[1]).group(1))
-    img_data = img.getdata()
+    icon_width = meta_data[0][1]['width']
+    icon_height = meta_data[0][1]['height']
+    meta_data = meta_data[1:] #We don't need the version info anymore
 
-    total_size = image_width * image_height
     icons_per_line = int(image_width / icon_width)
     total_lines = int(image_height / icon_height)
+
     if img.mode != "RGBA":
         img = img.convert("RGBA")
     data = np.asarray(img)
     
     img.close()
 
-    #Cut the first two and the last two elements of the list
-    meta_data.popitem() # Pop last
-    meta_data.popitem() # Pop last again
-    meta_data.popitem(False) # Pop first
-    meta_data.popitem(False) # Pop first again
-
-    total_icons = len(meta_data)
-
-    icon_names = []
-    for key in meta_data.items():
-        icon_names.append(key)
     icon_count = 0
     skip_naming = 0
     name_count = 1
@@ -75,8 +75,8 @@ def generate_icon_states(filename, save_each = False):
         while icon < icons_per_line:
             this_icon = PIL.Image.new('RGBA', (icon_width, icon_height))
             try:
-                this_icon_dict = icon_names[icon_count] # name : [dirs, frames, delay]
-                name = this_icon_dict[0].replace('state = ', '').replace('\"', '')
+                state_tuple = meta_data[icon_count] # (name, {'dirs' : 1, 'frames' : 1})
+                name = state_tuple[0]
                 if skip_naming:
                     if name_count > 0:
                         name += str(name_count)
@@ -85,24 +85,9 @@ def generate_icon_states(filename, save_each = False):
                     if not skip_naming:
                         icon_count += 1
                 else:
-                    amt_dirs = 0
-                    amt_frames = 0
-                    movement = False
-                    for item in this_icon_dict[1]:
-                        match = frame_dir_re.search(item)
-                        if match:
-                            amount = int(match.group(2))
-                            if match.group(1) == "dirs":
-                                amt_dirs = amount
-                            else:
-                                amt_frames = amount
-                        else:
-                            if item == 'movement = 1':
-                                movement = True
-                    if movement:
-                        skip_naming = (amt_dirs * amt_frames) - 1
-                    else:
-                        skip_naming = (amt_dirs - 1) + (amt_frames - 1)
+                    amt_dirs = state_tuple[1]['dirs']
+                    amt_frames = state_tuple[1]['frames']
+                    skip_naming = (amt_dirs * amt_frames) - 1
                     if not skip_naming:
                         icon_count += 1
                     else:
@@ -113,13 +98,13 @@ def generate_icon_states(filename, save_each = False):
             icon_end_w = icon_start_w + icon_width
             icon_start_h = line * icon_height
             icon_end_h = icon_start_h + icon_height
-            x = 0
+            this_state_x = 0
             for i in range(icon_start_w, icon_end_w):
-                y = 0
+                this_state_y = 0
                 for j in range(icon_start_h, icon_end_h):
-                    this_icon.putpixel((x, y), tuple(data[j,i]))
-                    y += 1
-                x += 1
+                    this_icon.putpixel((this_state_x, this_state_y), tuple(data[j, i]))
+                    this_state_y += 1
+                this_state_x += 1
 
             icon += 1
             icons[name] = this_icon
@@ -162,5 +147,5 @@ def compare_two_icon_files(file_a, file_b):
     return final_dict
 
 if __name__ == '__main__':
-    with open("./icon_dump/new_items_and_weapons.dmi", 'rb') as f:
-        generate_icon_states(f, True)
+    with open("./icon_dump/new_unary_devices.dmi", 'rb') as f:
+        generate_icon_states(f)
