@@ -33,8 +33,11 @@ def parse_metadata(img):
             if this_info:
                 grp_1 = this_info.group(1)
                 grp_2 = this_info.group(2)
-                if grp_1 == 'delay':
-                    grp_2 = grp_2.split(',')
+                if grp_1 in ['delay', 'hotspot']:
+                    entries = grp_2.split(',')
+                    grp_2 = []
+                    for thing in entries:
+                        grp_2.append(int(thing))
                 else:
                     grp_2 = int(grp_2)
                 dict_to_add = {grp_1 : grp_2}
