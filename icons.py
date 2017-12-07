@@ -10,6 +10,13 @@ import numpy as np
 
 PARSE_REGEX = re.compile(r'\t(.*) = (.*)')
 
+def int_or_float(value):
+    try:
+        value = int(value)
+    except ValueError:
+        value = float(value)
+    return value
+
 def parse_metadata(img):
     """
     Parses a DMI metadata, 
@@ -37,9 +44,9 @@ def parse_metadata(img):
                     entries = grp_2.split(',')
                     grp_2 = []
                     for thing in entries:
-                        grp_2.append(int(thing))
+                        grp_2.append(int_or_float(thing))
                 else:
-                    grp_2 = int(grp_2)
+                    grp_2 = int_or_float(grp_2)
                 dict_to_add = {grp_1 : grp_2}
                 meta_info[len(meta_info) - 1][1].update(dict_to_add)
     return meta_info
