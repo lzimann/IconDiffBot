@@ -128,7 +128,7 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
             with open(icon_path_a, 'wb') as f:
                 f.write(response_a.content)
         elif response_a.status_code == 404:
-            icon_path_a = None
+            icon_path_a = ''
         if response_b.status_code == 200:
             with open(icon_path_b, 'wb') as f:
                 f.write(response_b.content)
@@ -173,12 +173,14 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
         if DEBUG:
             with open("icon_dump/{}_{}.log".format(i_name, issue_number), 'w') as fp:
                 fp.write("\n".join(msg))
+        else:
+            if os.path.exists(icon_path_a):
+                os.remove(icon_path_a)
+            if os.path.exists(icon_path_b):
+                os.remove(icon_path_b)
     if send_message and len(msgs) > 1:
         post_comment(issue_url, msgs, base)
-    if os.path.exists(icon_path_a) and not DEBUG:
-        os.remove(icon_path_a)
-    if os.path.exists(icon_path_b) and not DEBUG:
-        os.remove(icon_path_b)
+    
 
 class Handler(resource.Resource):
     """Opens a web server to handle POST requests on given port"""
