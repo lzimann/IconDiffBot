@@ -10,8 +10,12 @@ from twisted.web import resource, server
 from twisted.internet import reactor, endpoints
 
 import icons
+import database
 
 DEBUG = False
+
+#DB Core
+DB = database.DBCore()
 
 #Setup logging
 log_format = "[%(asctime)s]: %(message)s"
@@ -83,15 +87,19 @@ def check_diff(diff_url):
         icons_with_diff.append(match.group(1))
     return icons_with_diff
 
-def upload_image(file_to_upload, upload = True):
+def upload_image(file_to_upload, img_hash, upload=True):
     """Uploads an image to the configured host"""
     if not upload:
         return None
+    has_link = DB.get_url(img_hash)
+    if has_link is not None:
+        return has_link
     data = {'key' : upload_api_key}
     files = {'file' : file_to_upload}
     req = requests.post(upload_api_url, data=data, files=files)
-    req_json = req.json()
-    return req_json.get('url')
+    url = req.json()['url']
+    DB.set_url(img_hash, url)
+    return url
 
 def post_comment(issue_url, message_dict, base):
     """Post a comment on given github issue url"""
@@ -152,8 +160,9 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
             img_a = this_dict[key].get('img_a')
             if img_a:
                 img_a.save(path_a)
+                a_hash = this_dict[key].get('img_a_hash')
                 with open(path_a, 'rb') as f:
-                    url_a = "![{key}]({url})".format(key=key, url=upload_image(f, send_message))
+                    url_a = "![{key}]({url})".format(key=key, url=upload_image(f, a_hash, send_message))
                 if not DEBUG:
                     os.remove(path_a)
             else:
@@ -161,15 +170,17 @@ def check_icons(icons_with_diff, base, head, issue_url, send_message=True):
             img_b = this_dict[key].get('img_b')
             if img_b:
                 img_b.save(path_b)
+                b_hash = this_dict[key].get('img_b_hash')
                 with open(path_b, 'rb') as f:
-                    url_b = "![{key}]({url})".format(key=key, url=upload_image(f, send_message))
+                    url_b = "![{key}]({url})".format(key=key, url=upload_image(f, b_hash, send_message))
                 if not DEBUG:
                     os.remove(path_b)
             else:
                 url_b = "![]()"
             msg.append("{key}|{url_a}|{url_b}|{status}".format(key=key, url_a=url_a, url_b=url_b, status=status))
         msg.append("</details>")
-        msgs.append("\n".join(msg))
+        if(len(msg) > 4):
+            msgs.append("\n".join(msg))
         if DEBUG:
             with open("icon_dump/{}_{}.log".format(i_name, issue_number), 'w') as fp:
                 fp.write("\n".join(msg))
@@ -219,23 +230,24 @@ class Handler(resource.Resource):
         log_message("Received a GET request.")
         return b"GET requests are not supported."
 
-def test_pr(number, owner, repository, send_message = False):
+def test_pr(number, owner, repository, send_message=False):
     """tests a pr for the icon diff"""
     req = requests.get("https://api.github.com/repos/{}/{}/pulls/{}".format(owner, repository, number))
+    log_message("[{}/{}] Testing PR #{}".format(owner, repository, number))
     if req.status_code == 404:
         log_message('PR #{} on {}/{} does not exist.'.format(number, owner, repository))
         return
     payload = req.json()
     icons_diff = check_diff(payload['diff_url'])
-    print(icons_diff)
+    if not icons_diff:
+        log_message("No diff detected on [{}/{}] #{}".format(owner, repository, number))
+        return
     log_message("Icons:")
     log_message("\n".join(icons_diff))
     check_icons(icons_diff, payload['base'], payload['head'], payload['issue_url'], send_message)
 
 def y_n_test(input_msg):
-    if input_msg[:1] in ("Y", "y"):
-        return True
-    return False
+    return input_msg[:1] in ("Y", "y")
 
 def get_debug_input():
     owner = input("Owner: ")
@@ -260,4 +272,3 @@ if __name__ == '__main__':
         get_debug_input()
     else:
         start_server()
-        

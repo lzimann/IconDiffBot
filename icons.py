@@ -1,8 +1,5 @@
-import os
 import re
-import json
-
-from collections import OrderedDict
+import hashlib
 from PIL import ImageChops
 import PIL.Image
 
@@ -51,8 +48,14 @@ def parse_metadata(img):
                 meta_info[len(meta_info) - 1][1].update(dict_to_add)
     return meta_info
 
+def get_icon_hash(fp, fp_name):
+    """Returns a file's hashed, fp is passed as a string"""
+    sha1 = hashlib.sha1(fp)
+    return sha1.hexdigest()
+
+
 def generate_icon_states(filename, save_each = False):
-    """Generates every icon state into an Image object. Returning a dict with {name : object}"""
+    """Generates every icon state into an Image object. Returning a dict with {name : (object, icon hash)}"""
     img = PIL.Image.open(filename)
 
     meta_data = parse_metadata(img)
@@ -122,14 +125,22 @@ def generate_icon_states(filename, save_each = False):
                 this_icon.save("icon_dump/{}.png".format(name))
     return icons
 
-
 def check_icon_state_diff(image_a, image_b):
     """Compares two icons(passed as an Image object), returning True if the icons are equal, False in case of a difference."""
     return ImageChops.difference(image_a, image_b).getbbox() is None
 
-
 def compare_two_icon_files(file_a, file_b):
-    """Compares every icon state of two icons, returning a dict with the icon state status: {state name : {status : no_check/modified/created, img_a : Image obj, img_b : Image obj}})"""
+    """
+    Compares every icon state of two icons, returning a dict with the icon state status: 
+    {state name : {
+        status : no_check/modified/created, 
+        img_a : Image obj,
+        img_a_hash: sha1 of Image a obj, 
+        img_b : Image obj,
+        img_b_hash: sha1 of Image b obj
+        }
+    }
+    """
     if file_a:
         file_a_dict = generate_icon_states(file_a)
     else:
@@ -138,6 +149,7 @@ def compare_two_icon_files(file_a, file_b):
     final_dict = {}
     for key in file_a_dict:
         final_dict[key] = {}
+        final_dict[key]["img_a_hash"] = get_icon_hash(file_a_dict[key].tobytes(), key)
         if not file_b_dict.get(key):
             final_dict[key]["status"] = "Removed"
             final_dict[key]["img_a"] = file_a_dict[key]
@@ -149,10 +161,15 @@ def compare_two_icon_files(file_a, file_b):
             final_dict[key]["status"] = "Modified"
             final_dict[key]["img_a"] = file_a_dict[key]
             final_dict[key]["img_b"] = file_b_dict[key]
+            final_dict[key]["img_b_hash"] = get_icon_hash(file_b_dict[key].tobytes(), key)
 
     for key in file_b_dict:
         if not file_a_dict.get(key):
-            final_dict[key] = {"status" : "Created", "img_b" : file_b_dict[key]}
+            final_dict[key] = {
+                "status" : "Created",
+                "img_b" : file_b_dict[key],
+                "img_b_hash" : get_icon_hash(file_b_dict[key].tobytes(), key)
+                }
 
     return final_dict
 
