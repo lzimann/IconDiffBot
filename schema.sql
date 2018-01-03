@@ -8,7 +8,7 @@ BEGIN TRANSACTION;
 
 -- Table: tbl_icons
 DROP TABLE IF EXISTS tbl_icons;
-CREATE TABLE tbl_icons (hash INTEGER PRIMARY KEY, URL TEXT);
+CREATE TABLE tbl_icons (hash TEXT PRIMARY KEY, URL TEXT);
 
 COMMIT TRANSACTION;
 PRAGMA foreign_keys = on;
