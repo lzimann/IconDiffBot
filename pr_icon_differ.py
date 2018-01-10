@@ -48,19 +48,23 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 sys.excepthook = handle_exception
 
 #Setup the config
-config = {}
-if os.path.exists(os.path.abspath('config.json')):
-    with open('config.json', 'r') as f:
-        config = json.load(f)
-else:
-    log_message("Make sure the config file exists.")
+class Config:
+    def __init__(self):
+        config = {}
+        if os.path.exists(os.path.abspath('config.json')):
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+        else:
+            log_message("Make sure the config file exists.")
+        self.webhook_port = config['webhook_port']
+        self.github_secret = config['github']['secret'].encode('utf-8')
+        self.github_user = config['github']['user']
+        self.github_auth = config['github']['auth']
+        self.upload_api_url = config['upload_api']['url']
+        self.upload_api_key = config['upload_api']['key']
+        self.ignore_list = config['ignore'] 
 
-github_secret = config['github']['secret'].encode('utf-8')
-github_user = config['github']['user']
-github_auth = config['github']['auth']
-upload_api_url = config['upload_api']['url']
-upload_api_key = config['upload_api']['key']
-
+config = Config()
 actions_to_check = ['opened', 'synchronize']
 binary_regex = re.compile(r'diff --git a\/(.*\.dmi) b\/.?')
 
@@ -69,7 +73,7 @@ def compare_secret(secret_to_compare, payload):
     if secret_to_compare is None:
         return False
 
-    this_secret = hmac.new(github_secret, payload, sha1)
+    this_secret = hmac.new(config.github_secret, payload, sha1)
     secret_to_compare = secret_to_compare.replace('sha1=', '')
     return hmac.compare_digest(secret_to_compare, this_secret.hexdigest())
 
@@ -94,9 +98,9 @@ def upload_image(file_to_upload, img_hash, upload=True):
     has_link = DB.get_url(img_hash)
     if has_link is not None:
         return has_link
-    data = {'key' : upload_api_key}
+    data = {'key' : config.upload_api_key}
     files = {'file' : file_to_upload}
-    req = requests.post(upload_api_url, data=data, files=files)
+    req = requests.post(config.upload_api_url, data=data, files=files)
     url = req.json()['url']
     DB.set_url(img_hash, url)
     return url
@@ -106,7 +110,7 @@ def post_comment(issue_url, message_dict, base):
     github_api_url = "{issue}/comments".format(issue=issue_url)
     body = json.dumps({'body' : '\n'.join(message_dict)})
     repo_name = base['repo']['full_name']
-    req = requests.post(github_api_url, data=body, auth=(github_user, github_auth))
+    req = requests.post(github_api_url, data=body, auth=(config.github_user, config.github_auth))
     if req.status_code == 201:
         log_message("[{}] Sucessefully commented icon diff on: {}".format(repo_name, req.json()['html_url']))
     else:
@@ -214,6 +218,8 @@ class Handler(resource.Resource):
         pr_obj = payload['pull_request']
         if payload['action'] not in actions_to_check:
             return b"Not actionable"
+        if pr_obj['user']['login'].lower() in config.ignore_list:
+            return b"Ok"
         issue_url = pr_obj['issue_url']
         pr_diff_url = pr_obj['diff_url']
         head = pr_obj['head']
@@ -258,9 +264,9 @@ def get_debug_input():
 
 def start_server():
     """Starts the webserver"""
-    webhook_port = "tcp:{}".format(config['webhook_port'])
+    webhook_port = "tcp:{}".format(config.webhook_port)
     endpoints.serverFromString(reactor, webhook_port).listen(server.Site(Handler()))
-    log_message("Listening for requests on port: {}".format(config['webhook_port']))
+    log_message("Listening for requests on port: {}".format(config.webhook_port))
     try:
         reactor.run()
     except KeyboardInterrupt:
