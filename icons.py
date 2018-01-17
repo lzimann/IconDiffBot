@@ -92,7 +92,7 @@ def generate_icon_states(filename, save_each = False):
                 name = state_tuple[0]
                 if skip_naming:
                     if name_count > 0:
-                        name += str(name_count)
+                        name += "[{}]".format(str(name_count))
                     name_count += 1
                     skip_naming -= 1
                     if not skip_naming:

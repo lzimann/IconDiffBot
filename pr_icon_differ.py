@@ -249,17 +249,16 @@ def test_pr(number, owner, repository, send_message=False):
         log_message("No diff detected on [{}/{}] #{}".format(owner, repository, number))
         return
     log_message("Icons:")
-    log_message("\n".join(icons_diff))
+    for ic_name in icons_diff:
+        log_message(ic_name)
     check_icons(icons_diff, payload['base'], payload['head'], payload['issue_url'], send_message)
-
-def y_n_test(input_msg):
-    return input_msg[:1] in ("Y", "y")
 
 def get_debug_input():
     owner = input("Owner: ")
     repo = input("Repo: ")
     number = input("PR number: ")
-    send_msg = y_n_test(input("Send message(y/n): "))
+    send_msg = True if input("Send message(y/n): ")[:1].lower() == 'y' else False
+    print(send_msg)
     test_pr(number, owner, repo, send_msg)
 
 def start_server():
