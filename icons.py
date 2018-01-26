@@ -1,5 +1,6 @@
 import re
 import hashlib
+from collections import OrderedDict
 from PIL import ImageChops
 import PIL.Image
 
@@ -54,7 +55,7 @@ def get_icon_hash(fp, fp_name):
     return sha1.hexdigest()
 
 
-def generate_icon_states(filename, save_each = False):
+def generate_icon_states(filename, save_each=False):
     """Generates every icon state into an Image object. Returning a dict with {name : (object, icon hash)}"""
     img = PIL.Image.open(filename)
 
@@ -146,7 +147,7 @@ def compare_two_icon_files(file_a, file_b):
     else:
         file_a_dict = {}
     file_b_dict = generate_icon_states(file_b)
-    final_dict = {}
+    final_dict = OrderedDict()
     for key in file_a_dict:
         final_dict[key] = {}
         final_dict[key]["img_a_hash"] = get_icon_hash(file_a_dict[key].tobytes(), key)

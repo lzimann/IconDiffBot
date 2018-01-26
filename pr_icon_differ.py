@@ -105,13 +105,27 @@ def upload_image(file_to_upload, img_hash, upload=True):
     DB.set_url(img_hash, url)
     return url
 
+def check_comments(api_url):
+    """Checks all comments on given issue if we already commented on it(using config's github username), will return the issue ID if exists"""
+    req = requests.get(api_url)
+    if req.status_code == 200:
+        for comment in req.json():
+            if comment['user']['login'] == config.github_user:
+                return comment['url']
+    return None
+
 def post_comment(issue_url, message_dict, base):
     """Post a comment on given github issue url"""
     github_api_url = "{issue}/comments".format(issue=issue_url)
+    comment_id = check_comments(github_api_url)
+    http_method = requests.post
+    if comment_id is not None:
+        github_api_url = comment_id
+        http_method = requests.patch
     body = json.dumps({'body' : '\n'.join(message_dict)})
     repo_name = base['repo']['full_name']
-    req = requests.post(github_api_url, data=body, auth=(config.github_user, config.github_auth))
-    if req.status_code == 201:
+    req = http_method(github_api_url, data=body, auth=(config.github_user, config.github_auth))
+    if req.status_code == 201 or req.status_code == 200:
         log_message("[{}] Sucessefully commented icon diff on: {}".format(repo_name, req.json()['html_url']))
     else:
         log_message("[{}] Failed to comment on: {}".format(repo_name, issue_url))
@@ -233,7 +247,6 @@ class Handler(resource.Resource):
         return b"Ok"
     def render_GET(self, request):
         request.setResponseCode(404)
-        log_message("Received a GET request.")
         return b"GET requests are not supported."
 
 def test_pr(number, owner, repository, send_message=False):
@@ -258,7 +271,6 @@ def get_debug_input():
     repo = input("Repo: ")
     number = input("PR number: ")
     send_msg = True if input("Send message(y/n): ")[:1].lower() == 'y' else False
-    print(send_msg)
     test_pr(number, owner, repo, send_msg)
 
 def start_server():
@@ -273,7 +285,7 @@ def start_server():
 
 if __name__ == '__main__':
     if "debug" in sys.argv:
-        DEBUG = True
+        #DEBUG = True
         get_debug_input()
     else:
         start_server()
