@@ -273,6 +273,12 @@ def get_debug_input():
     send_msg = True if input("Send message(y/n): ")[:1].lower() == 'y' else False
     test_pr(number, owner, repo, send_msg)
 
+def bulk_prs():
+    with open('bulk_prs.txt') as f:
+        prs = f.readlines()
+    for pr in prs:
+        test_pr(int(pr), 'tgstation', 'tgstation', True)
+
 def start_server():
     """Starts the webserver"""
     webhook_port = "tcp:{}".format(config.webhook_port)
@@ -287,5 +293,7 @@ if __name__ == '__main__':
     if "debug" in sys.argv:
         #DEBUG = True
         get_debug_input()
+    elif "bulk" in sys.argv:
+        bulk_prs()
     else:
         start_server()
