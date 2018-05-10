@@ -1,0 +1,15 @@
+{
+  "webhook_port" : 5001,
+  "github" : {
+    "secret" : "",
+    "user" : "",
+    "auth" : ""
+  },
+  "upload_api" : {
+    "url" : "",
+    "key" : ""
+   },
+   "ignore" : [
+	""
+   ]
+}
